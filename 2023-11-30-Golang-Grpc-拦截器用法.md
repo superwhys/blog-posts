@@ -63,6 +63,107 @@ type StreamClientInterceptor func(
 
 ## 4. 服务端拦截器
 ### 4.1 一元拦截器
+服务端一元拦截器类型为 `UnaryServerInterceptor`，方法原型如下：
+```go
+type UnaryServerInterceptor func(
+    ctx context.Context, 
+    req any, 
+    info *UnaryServerInfo, 
+    handler UnaryHandler,
+) (resp any, err error)
+```
 
 ### 4.2 流拦截器
+服务端流拦截器类型为 `StreamServerInterceptor`，方法原型如下：
+```go
+type StreamServerInterceptor func(
+    srv any, 
+    ss ServerStream, 
+    info *StreamServerInfo, 
+    handler StreamHandler,
+) error
+```
 
+## 5. 使用案例
+### 5.1 服务端拦截器
+#### 一元拦截器
+```go
+
+func exampleInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+	start := time.Now()
+	resp, err = handler(ctx, req)
+	fmt.Printf("spend time: %v\n", time.Since(start))
+	return resp, err
+}
+
+// ...
+
+s := grpc.NewServer(grpc.UnaryInterceptor(exampleInterceptor))
+
+// ...
+
+```
+
+#### 流拦截器
+```go
+
+type wrappedStream struct {
+	grpc.ServerStream
+}
+
+func newWrappedStream(s grpc.ServerStream) grpc.ServerStream {
+	return &wrappedStream{s}
+}
+
+func (w *wrappedStream) RecvMsg(m interface{}) error {
+	logger("Receive a message (Type: %T) at %s", m, time.Now().Format(time.RFC3339))
+	return w.ServerStream.RecvMsg(m)
+}
+
+func (w *wrappedStream) SendMsg(m interface{}) error {
+	logger("Send a message (Type: %T) at %v", m, time.Now().Format(time.RFC3339))
+	return w.ServerStream.SendMsg(m)
+}
+
+func exampleStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// 包装 grpc.ServerStream 以替换 RecvMsg SendMsg这两个方法。
+	err := handler(srv, newWrappedStream(ss))
+	if err != nil {
+		logger("RPC failed with error %v", err)
+	}
+	return err
+}
+
+// ...
+
+s := grpc.NewServer(grpc.StreamInterceptor(exampleStreamInterceptor))
+
+// ...
+
+```
+
+### 5.2 客户端拦截器
+#### 一元拦截器
+```go
+func exampleClientInterceptor(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	// pre-processing
+	start := time.Now()
+	err := invoker(ctx, method, req, reply, cc, opts...) // invoking RPC method
+	// post-processing
+	fmt.Printf("invoke remote method=%s req=%v reply=%v duration=%s error=%v\n", method, req, reply, time.Since(start), err)
+	return err
+}
+
+conn, err := grpc.DialContext(
+		context.TODO(),
+		"localhost:55771",
+		grpc.UnaryClientInterceptor(exampleClientInterceptor),
+)
+
+client := examplepb.NewExampleHelloServiceClient(conn)
+resp, err := client.SayHello(ctx, &examplepb.HelloRequest{
+	Name: "name",
+})
+
+// ...
+```
