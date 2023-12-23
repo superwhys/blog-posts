@@ -120,7 +120,7 @@ func main() {
 ```
 到这里, 一个最简单的GRPC服务就启动起来了, 它使用`cmux`启动了一个多路复用器, 将http服务和Grpc服务都绑定在一个同一个端口中.
 
-## 解析
+## Grpc metadata
 
 我们可以轻松的使用`GRPC`的方式或者`HTTP`的方式请求到我们需要的接口
 
@@ -154,7 +154,7 @@ map[grpcgateway-accept:[*/*] grpcgateway-user-agent:[curl/8.1.2] x-forwarded-for
 ```
 可以看到我们请求的头的数据并没进入到GRPC的 metadata 中
 
-### Grpc Gateway源码
+### Grpc Gateway HeaderMatcher
 按道理来说, 我们能够获取到`httpHeader`数据的地方应该只有上下文的`metadata`了,
 但是到底是什么原因导致的`httpHeader`中的数据没有进入到上下文的`metadata`呢
 
